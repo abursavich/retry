@@ -7,8 +7,8 @@
 package retry
 
 import (
+	"hash/maphash"
 	"math"
-	"math/rand"
 	"time"
 )
 
@@ -137,29 +137,25 @@ func (p *exponentialBackoff) Next(start, now time.Time, attempt int) (time.Durat
 	return backoff, true
 }
 
-// WithRandomJitter returns a Policy that wraps the parent Policy and adds random jitter
-// as a plus or minus factor of its backoff. For example, with a factor of 0.5 and a parent
-// backoff of 10s, the randomized backoff would be in the interval of [5s, 15s].
-func WithRandomJitter(parent Policy, rand *rand.Rand, factor float64) Policy {
-	if rand == nil {
-		rand = globalRand
-	}
+// WithRandomJitter returns a Policy that wraps the parent Policy and adds or subtracts
+// random jitter as a factor of its backoff. For example, with a factor of 0.5
+// and a parent backoff of 10s, the randomized backoff would be in [5s, 15s].
+func WithRandomJitter(parent Policy, factor float64) Policy {
 	if factor <= 0 || factor > 1 {
 		factor = DefaultJitterFactor
 	}
-	return &withRandomJitter{parent: parent, factor: factor, rand: rand}
+	return &withRandomJitter{parent: parent, factor: factor}
 }
 
 // WithDefaultRandomJitter returns a Policy that wraps the parent Policy with random jitter
-// using the default values of a globally shared source of randomness and a factor of 50%.
+// using the default factor of 50%.
 func WithDefaultRandomJitter(parent Policy) Policy {
-	return WithRandomJitter(parent, globalRand, DefaultJitterFactor)
+	return WithRandomJitter(parent, DefaultJitterFactor)
 }
 
 type withRandomJitter struct {
 	parent Policy
 	factor float64
-	rand   *rand.Rand
 }
 
 func (p *withRandomJitter) Next(start, now time.Time, attempt int) (time.Duration, bool) {
@@ -167,7 +163,7 @@ func (p *withRandomJitter) Next(start, now time.Time, attempt int) (time.Duratio
 	if !allow {
 		return 0, false
 	}
-	r := p.rand.Float64()
+	r := fastrand()
 	j := p.factor
 	// r = [0, 1)
 	// 2*r = [0, 2)
@@ -176,6 +172,15 @@ func (p *withRandomJitter) Next(start, now time.Time, attempt int) (time.Duratio
 	// 1 + j*(2*r - 1) = [1 - j, 1 + j)
 	// b*(1 + j*(2*r - 1)) = [b - j*b, b + j*b)
 	return time.Duration(float64(b) * (1 + (j * (2*r - 1)))), true
+}
+
+func fastrand() float64 {
+	const (
+		mask = 1<<53 - 1
+		mult = 0x1.0p-53
+	)
+	u64 := maphash.Bytes(maphash.MakeSeed(), nil)
+	return float64(u64&mask) * mult
 }
 
 // WithMaxRetries returns a Policy that wraps the parent Policy and sets a limit
