@@ -5,38 +5,35 @@
 
 Package retry provides backoff algorithms for retryable processes.
 
-It was inspired by [github.com/cenkalti/backoff/v4][backoff] which is a port of [Google's HTTP Client Library for Java].
+It was inspired by [github.com/cenkalti/backoff/v4][backoff] which is a port of [Google's HTTP Client
+Library for Java].
 
-## Why?
 
-I like [backoff] and I've used it often, but certain things about it have always irked me. I started off trying to write
-a little wrapper around it to hide those things, but then I realized it required changes that couldn't retain the same
-underlying implementation. So I wrote this from scratch.
+## How is it different?
 
-This is how it's different:
+It removes retry state from objects, which reduces allocations and allows a single instance to be used
+concurrently by all callers.
 
-- It removes retry state from objects, reducing allocations and allowing a single instance
-  to be used concurrently by all callers.
+```go
+type Policy interface {
+    Next(err error, start, now time.Time, attempt int) (backoff time.Duration, allow bool)
+}
+```
 
-    ```go
-    type Policy interface {
-        Next(start, now time.Time, attempt int) (backoff time.Duration, allow bool)
-    }
-    ```
+It decomposes features and encourages their composition.
 
-- It decomposes features and encourages their composition.
+```go
+policy := retry.WithRandomJitter(retry.ConstantBackoff(time.Second), rand, 0.5)
+```
 
-    ```go
-    policy := retry.WithRandomJitter(retry.ConstantBackoff(time.Second), rand, 0.5)
-    ```
+It moves [context] to the forefront and improves ergonomics.
 
-- It changes the primary call ergonomics and moves [context] to the forefront.
+```go
+err := retry.Do(ctx, policy, func() errror {
+    // ...
+})
+```
 
-    ```go
-    err := retry.Do(ctx, policy, func() errror {
-        // ...
-    })
-    ```
 
 [license]: https://raw.githubusercontent.com/abursavich/retry/main/LICENSE
 [license-img]: https://img.shields.io/badge/license-mit-blue.svg?style=for-the-badge

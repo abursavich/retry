@@ -71,7 +71,7 @@ type constantBackoff struct {
 	backoff time.Duration
 }
 
-func (p constantBackoff) Next(start, now time.Time, attempt int) (time.Duration, bool) {
+func (p constantBackoff) Next(err error, start, now time.Time, attempt int) (time.Duration, bool) {
 	return time.Duration(p.backoff), true
 }
 
@@ -127,7 +127,7 @@ type exponentialBackoff struct {
 	factor float64
 }
 
-func (p *exponentialBackoff) Next(start, now time.Time, attempt int) (time.Duration, bool) {
+func (p *exponentialBackoff) Next(err error, start, now time.Time, attempt int) (time.Duration, bool) {
 	growthFactor := math.Pow(p.factor, float64(attempt-1))
 	backoff := time.Duration(growthFactor * float64(p.min))
 	if backoff > p.max {
@@ -157,8 +157,8 @@ type withRandomJitter struct {
 	factor float64
 }
 
-func (p *withRandomJitter) Next(start, now time.Time, attempt int) (time.Duration, bool) {
-	b, allow := p.parent.Next(start, now, attempt)
+func (p *withRandomJitter) Next(err error, start, now time.Time, attempt int) (time.Duration, bool) {
+	b, allow := p.parent.Next(err, start, now, attempt)
 	if !allow {
 		return 0, false
 	}
@@ -193,11 +193,11 @@ type maxRetries struct {
 	limit  int
 }
 
-func (p *maxRetries) Next(start, now time.Time, attempt int) (time.Duration, bool) {
+func (p *maxRetries) Next(err error, start, now time.Time, attempt int) (time.Duration, bool) {
 	if attempt > p.limit {
 		return 0, false
 	}
-	return p.Next(start, now, attempt)
+	return p.Next(err, start, now, attempt)
 }
 
 // WithMaxElapsedDuration returns a Policy that wraps the parent Policy and sets a limit
@@ -211,8 +211,8 @@ type maxElapsed struct {
 	limit  time.Duration
 }
 
-func (p *maxElapsed) Next(start, now time.Time, attempt int) (time.Duration, bool) {
-	d, ok := p.parent.Next(start, now, attempt)
+func (p *maxElapsed) Next(err error, start, now time.Time, attempt int) (time.Duration, bool) {
+	d, ok := p.parent.Next(err, start, now, attempt)
 	if start.Add(p.limit).Before(now.Add(d)) {
 		return 0, false
 	}

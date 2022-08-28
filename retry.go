@@ -13,33 +13,41 @@ import (
 	"time"
 )
 
-// Policy is a policy for retrying an operation.
+// Policy is a policy for retrying a function.
 type Policy interface {
 	// Next returns the backoff duration to wait before the next attempt
 	// and a bool indicating if a retry should be attempted.
-	Next(start, now time.Time, attempt int) (backoff time.Duration, allow bool)
+	Next(err error, start, now time.Time, attempt int) (backoff time.Duration, allow bool)
 }
 
-// A PermanentError signals that an operation is not retriable.
-type PermanentError struct {
-	Err error
+// NewPermanentError returns a new error that signals the function is not retriable.
+// If err is nil or is a permanent error already, it's return unchanged.
+//
+// It's provided as a convenience for simple use cases, but in complex use cases it may be
+// better to implement your permanent vs transient error detection as a custom Policy layer.
+func NewPermanentError(err error) error {
+	if err == nil || errors.Is(err, &permErr) {
+		return err
+	}
+	return &permanentError{err}
 }
 
-func (e *PermanentError) Error() string { return e.Err.Error() }
+var permErr permanentError
 
-func (e *PermanentError) Unwrap() error { return e.Err }
+type permanentError struct{ err error }
 
-// Do executes the retriable function according to the given Policy.
+func (e *permanentError) Error() string { return e.err.Error() }
+
+func (e *permanentError) Unwrap() error { return e.err }
+
+// Do executes the retriable function according to the given policy.
 //
-// If fn returns a PermanentError, its inner error will be returned without follow-up retry attempts.
+// If fn returns a permanent error, the error will be returned without additional retry attempts.
 //
-// If the context has a deadline before the next retry attempt would be scheduled it will return the
-// last error without waiting.
-func Do(ctx context.Context, p Policy, fn func() error) error {
-	var (
-		pe *PermanentError
-		t  *time.Timer
-	)
+// If ctx has a deadline before the next retry attempt would be scheduled it will return the
+// last error without waiting for the deadline.
+func Do(ctx context.Context, policy Policy, fn func() error) error {
+	var t *time.Timer
 	start := time.Now()
 	deadline, hasDeadline := ctx.Deadline()
 	for retry := 1; ; retry++ {
@@ -47,12 +55,15 @@ func Do(ctx context.Context, p Policy, fn func() error) error {
 		if err == nil {
 			return nil
 		}
-		if errors.As(err, &pe) {
-			return pe.Err
+		if errors.Is(err, &permErr) {
+			// We don't return the permanentError's inner error because the permanentError
+			// may be in the middle of a chain of errors and we don't want to drop any
+			// errors that are wrapping it.
+			return err
 		}
 
 		now := time.Now()
-		next, ok := p.Next(start, now, retry)
+		next, ok := policy.Next(err, start, now, retry)
 		if !ok {
 			return err
 		}
