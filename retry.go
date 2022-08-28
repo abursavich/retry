@@ -17,14 +17,14 @@ import (
 type Policy interface {
 	// Next returns the backoff duration to wait before the next attempt
 	// and a bool indicating if a retry should be attempted.
-	Next(err error, start, now time.Time, attempt int) (backoff time.Duration, allow bool)
+	Next(err error, start, now time.Time, attempt int) (backoff time.Duration, retry bool)
 }
 
-// NewPermanentError returns a new error that signals the function is not retriable.
+// NewPermanentError returns a new error that wraps err and signals that the function should not be retried.
 // If err is nil or is a permanent error already, it's return unchanged.
 //
-// It's provided as a convenience for simple use cases, but in complex use cases it may be
-// better to implement your permanent vs transient error detection as a custom Policy layer.
+// It's provided as a convenience for simple use cases, but in complex use cases it's probably better
+// to implement permanent error detection as a custom Policy layer.
 func NewPermanentError(err error) error {
 	if err == nil || errors.Is(err, &permErr) {
 		return err
@@ -52,11 +52,8 @@ func Do(ctx context.Context, policy Policy, fn func() error) error {
 	deadline, hasDeadline := ctx.Deadline()
 	for retry := 1; ; retry++ {
 		err := fn()
-		if err == nil {
-			return nil
-		}
-		if errors.Is(err, &permErr) {
-			// We don't return the permanentError's inner error because the permanentError
+		if err == nil || errors.Is(err, &permErr) {
+			// We don't return a permanentError's inner error because the permanentError
 			// may be in the middle of a chain of errors and we don't want to drop any
 			// errors that are wrapping it.
 			return err

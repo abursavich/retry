@@ -9,24 +9,24 @@ It was inspired by [github.com/cenkalti/backoff/v4][backoff] which is a port of 
 Library for Java].
 
 
-## How is it different?
+## Why?
 
-It removes retry state from objects, which reduces allocations and allows a single instance to be used
-concurrently by all callers.
+It separates state from policy, which reduces allocations and allows a single policy instance to be used
+concurrently by all callers, and it uses explicit return values instead of magic sentinel values.
 
 ```go
 type Policy interface {
-    Next(err error, start, now time.Time, attempt int) (backoff time.Duration, allow bool)
+    Next(err error, start, now time.Time, attempt int) (backoff time.Duration, retry bool)
 }
 ```
 
 It decomposes features and encourages their composition.
 
 ```go
-policy := retry.WithRandomJitter(retry.ConstantBackoff(time.Second), rand, 0.5)
+policy := retry.WithRandomJitter(retry.ConstantBackoff(time.Second), 0.5)
 ```
 
-It moves [context] to the forefront and improves ergonomics.
+It makes [context] first-class and improves call ergonomics.
 
 ```go
 err := retry.Do(ctx, policy, func() errror {
