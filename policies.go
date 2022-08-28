@@ -22,7 +22,7 @@ const (
 
 var defaultPolicy = WithDefaultRandomJitter(DefaultExponentialBackoff())
 
-// DefaultBackoff returns a Policy using the default exponential backoff
+// DefaultPolicy returns a Policy using the default exponential backoff
 // with the default random jitter.
 //
 // This results in the following behavior:
@@ -44,7 +44,7 @@ var defaultPolicy = WithDefaultRandomJitter(DefaultExponentialBackoff())
 //	     14    [7.500s, 22.500s]    [34.312s, 102.936s]
 //	     15    [7.500s, 22.500s]    [41.812s, 125.436s]
 //	    ...           ...                   ...
-func DefaultBackoff() Policy {
+func DefaultPolicy() Policy {
 	return defaultPolicy
 }
 
