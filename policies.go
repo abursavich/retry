@@ -197,7 +197,7 @@ func (p *maxRetries) Next(err error, start, now time.Time, attempt int) (time.Du
 	if attempt > p.limit {
 		return 0, false
 	}
-	return p.Next(err, start, now, attempt)
+	return p.parent.Next(err, start, now, attempt)
 }
 
 // WithMaxElapsedDuration returns a Policy that wraps the parent Policy and sets a limit
