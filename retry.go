@@ -26,13 +26,20 @@ type Policy interface {
 // It's provided as a convenience for simple use cases, but in complex use cases it's probably better
 // to implement permanent error detection as a custom Policy layer.
 func NewPermanentError(err error) error {
-	if err == nil || errors.Is(err, &permErr) {
+	if err == nil || isPermErr(err) {
 		return err
 	}
 	return &permanentError{err}
 }
 
-var permErr permanentError
+func isPermErr(err error) bool {
+	for ; err != nil; err = errors.Unwrap(err) {
+		if _, ok := err.(*permanentError); ok {
+			return true
+		}
+	}
+	return false
+}
 
 type permanentError struct{ err error }
 
@@ -52,7 +59,7 @@ func Do(ctx context.Context, policy Policy, fn func() error) error {
 	deadline, hasDeadline := ctx.Deadline()
 	for retry := 1; ; retry++ {
 		err := fn()
-		if err == nil || errors.Is(err, &permErr) {
+		if err == nil || isPermErr(err) {
 			// We don't return a permanentError's inner error because the permanentError
 			// may be in the middle of a chain of errors and we don't want to drop any
 			// errors that are wrapping it.
