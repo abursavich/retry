@@ -90,8 +90,10 @@ func Do(ctx context.Context, policy Policy, fn func() error) error {
 }
 
 func resetTimer(t *time.Timer, d time.Duration) {
-	if !t.Stop() {
-		<-t.C
+	t.Stop()
+	select {
+	case <-t.C:
+	default:
 	}
 	t.Reset(d)
 }
