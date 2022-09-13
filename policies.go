@@ -129,11 +129,11 @@ type exponentialBackoff struct {
 
 func (p *exponentialBackoff) Next(err error, start, now time.Time, attempt int) (time.Duration, bool) {
 	growthFactor := math.Pow(p.factor, float64(attempt-1))
-	backoff := time.Duration(growthFactor * float64(p.min))
-	if backoff > p.max {
-		backoff = p.max
+	backoff := growthFactor * float64(p.min)
+	if float64(p.max) < backoff {
+		return p.max, true
 	}
-	return backoff, true
+	return time.Duration(backoff), true
 }
 
 // WithRandomJitter returns a Policy that wraps the parent Policy and adds or subtracts
