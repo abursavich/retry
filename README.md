@@ -29,7 +29,7 @@ policy := retry.WithRandomJitter(retry.ConstantBackoff(time.Second), 0.5)
 It makes [context] first-class and improves call ergonomics.
 
 ```go
-err := retry.Do(ctx, policy, func() errror {
+err := retry.Do(ctx, policy, func() error {
     // ...
 })
 ```
