@@ -32,14 +32,9 @@ func NewPermanentError(err error) error {
 	return &permanentError{err}
 }
 
-func isPermErr(err error) bool {
-	for ; err != nil; err = errors.Unwrap(err) {
-		if _, ok := err.(*permanentError); ok {
-			return true
-		}
-	}
-	return false
-}
+var permErr permanentError
+
+func isPermErr(err error) bool { return errors.Is(err, &permErr) }
 
 type permanentError struct{ err error }
 
