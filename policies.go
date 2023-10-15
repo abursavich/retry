@@ -7,9 +7,10 @@
 package retry
 
 import (
-	"hash/maphash"
 	"math"
 	"time"
+
+	"bursavich.dev/fastrand"
 )
 
 // Default policy values.
@@ -162,24 +163,7 @@ func (p *withRandomJitter) Next(err error, start, now time.Time, attempt int) (t
 	if !allow {
 		return 0, false
 	}
-	r := fastrand()
-	j := p.factor
-	// r = [0, 1)
-	// 2*r = [0, 2)
-	// 2*r - 1 = [-1, 1)
-	// j*(2*r - 1) = [-j, j)
-	// 1 + j*(2*r - 1) = [1 - j, 1 + j)
-	// b*(1 + j*(2*r - 1)) = [b - j*b, b + j*b)
-	return time.Duration(float64(b) * (1 + (j * (2*r - 1)))), true
-}
-
-func fastrand() float64 {
-	const (
-		mask = 1<<53 - 1
-		mult = 0x1.0p-53
-	)
-	u64 := maphash.Bytes(maphash.MakeSeed(), nil)
-	return float64(u64&mask) * mult
+	return fastrand.Jitter(b, p.factor), true
 }
 
 // WithMaxRetries returns a Policy that wraps the parent Policy and sets a limit
