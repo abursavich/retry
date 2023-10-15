@@ -69,7 +69,7 @@ func Do(ctx context.Context, policy Policy, fn func() error) error {
 			return err
 		}
 		if hasDeadline && deadline.Before(time.Now().Add(next)) {
-			return err // TODO: context.DeadlineExceeded ?
+			return err
 		}
 
 		if t == nil {
@@ -80,7 +80,49 @@ func Do(ctx context.Context, policy Policy, fn func() error) error {
 		select {
 		case <-ctx.Done():
 			t.Stop()
-			return err // TODO: ctx.Err() ?
+			return err
+		case <-t.C:
+		}
+	}
+}
+
+// DoValue executes the retriable function according to the given policy and returns the results.
+//
+// If fn returns a permanent error, the error will be returned without additional retry attempts.
+//
+// If ctx has a deadline before the next retry attempt would be scheduled it will return the
+// last error without waiting for the deadline.
+func DoValue[T any](ctx context.Context, policy Policy, fn func() (T, error)) (T, error) {
+	var t *time.Timer
+	start := time.Now()
+	deadline, hasDeadline := ctx.Deadline()
+	for retry := 1; ; retry++ {
+		v, err := fn()
+		if err == nil || isPermErr(err) {
+			// We don't return a permanentError's inner error because the permanentError
+			// may be in the middle of a chain of errors and we don't want to drop any
+			// errors that are wrapping it.
+			return v, err
+		}
+
+		now := time.Now()
+		next, ok := policy.Next(err, start, now, retry)
+		if !ok {
+			return v, err
+		}
+		if hasDeadline && deadline.Before(time.Now().Add(next)) {
+			return v, err
+		}
+
+		if t == nil {
+			t = time.NewTimer(next)
+		} else {
+			resetTimer(t, next)
+		}
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return v, err
 		case <-t.C:
 		}
 	}
