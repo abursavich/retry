@@ -32,20 +32,17 @@ func NewPermanentError(err error) error {
 	return &permanentError{err}
 }
 
-func isPermErr(err error) bool {
-	for ; err != nil; err = errors.Unwrap(err) {
-		if _, ok := err.(*permanentError); ok {
-			return true
-		}
-	}
-	return false
-}
+var permErr error = &permanentError{}
+
+func isPermErr(err error) bool { return errors.Is(err, permErr) }
 
 type permanentError struct{ err error }
 
 func (e *permanentError) Error() string { return e.err.Error() }
 
 func (e *permanentError) Unwrap() error { return e.err }
+
+func (e *permanentError) Is(err error) bool { return err == e || err == permErr }
 
 // Do executes the retriable function according to the given policy.
 //
