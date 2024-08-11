@@ -8,9 +8,8 @@ package retry
 
 import (
 	"math"
+	"math/rand/v2"
 	"time"
-
-	"bursavich.dev/fastrand"
 )
 
 // Default policy values.
@@ -159,11 +158,18 @@ type withRandomJitter struct {
 }
 
 func (p *withRandomJitter) Next(err error, start, now time.Time, attempt int) (time.Duration, bool) {
-	b, allow := p.parent.Next(err, start, now, attempt)
+	d, allow := p.parent.Next(err, start, now, attempt)
 	if !allow {
 		return 0, false
 	}
-	return fastrand.Jitter(b, p.factor), true
+	r := rand.Float64()
+	// r = [0, 1)
+	// 2*r = [0, 2)
+	// 2*r - 1 = [-1, 1)
+	// f*(2*r - 1) = [-f, f)
+	// 1 + f*(2*r - 1) = [1 - f, 1 + f)
+	// d*(1 + f*(2*r - 1)) = [d - f*d, d + f*d)
+	return time.Duration(float64(d) * (1 + (p.factor * (2*r - 1)))), true
 }
 
 // WithMaxRetries returns a Policy that wraps the parent Policy and sets a limit
